@@ -1,0 +1,38 @@
+ INSERT UPDATE DELETE(TRANCATE)
+
+SELECT [ALL | DISTINCT] { * | [имя_столбца [AS новое_имя]] }  FROM имя_таблицы 
+	[WHERE <условие_поиска>]
+	[GROUP BY имя_столбца [,...]]      //группировка значений
+	[HAVING <критерий выбора групп>]   //условие на группы
+	[ORDER BY имя_столбца [,...]]      //упорядочивание выборки
+	[LIMIT n[,m]]                      //ограничение количества
+	 
+ALL | DISTINCT - поввторяющиеся нужны или нет
+
+WHERE:
+	1) expression [ NOT ] BETWEEN expression AND expression;
+	2) field-name IS [ NOT ] NULL;
+	3) field-name [ NOT ] LIKE ‘string’ [ ESCAPE ‘character’ ];
+	4) expression [ NOT ] IN ({ value-list});
+
+Функции анрегирования:
+
+	AVG([ ALL|DISTINCT ] <выражение>) - Вычисляет среднее арифметическое для заданного множества значений
+	COUNT( [ALL|DISTINCT] <выражение>) - Вычисляет количество записей в таблице
+	MAX(<выражение>) - Вычисляет максимальное значение в заданном множестве
+	MIN(<выражение>) - Вычисляет минимальное значение в заданном множестве
+	SUM([ ALL|DISTINCT ] <выражение>) - Вычисляет сумму указанных выражений в заданном множестве
+
+	SELECT COUNT(*) AS "Количество студентов" FROM STUDENT;
+	
+	SELECT MIN(BirthDate) AS MinBirthDate,
+ 		MAX(BirthDate) AS MaxBirthDate
+		ROM STUDENT;
+
+	SELECT GroupNumber AS "Номер группы",            //Количество студентов в каждой группе.
+		COUNT(*) AS "Кол-во студентов в группе"
+		FROM STUDENT GROUP BY GroupNumber;
+
+	SELECT StudentId FROM EXAM_RESULT		//Номера зачеток студентов, получавших на экзаменах только 5
+		ROUP BY StudentId HAVING MIN(Mark) = 5;
+

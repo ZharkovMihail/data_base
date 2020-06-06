@@ -1,0 +1,249 @@
+# --------- создание бызы данных -----------
+
+CREATE DATABASE designer_collection;
+USE designer_collection;
+
+
+# --------- создание таблиц -----------
+
+CREATE TABLE designer
+  (designer_id INTEGER AUTO_INCREMENT PRIMARY KEY, 
+   designer_name VARCHAR(50) NOT NULL, 
+   place_of_study VARCHAR(50));
+
+CREATE TABLE collection
+  (collection_id INTEGER AUTO_INCREMENT PRIMARY KEY, 
+   collection_name VARCHAR(50) NOT NULL, 
+   collection_type VARCHAR(50) NOT NULL, 
+   season VARCHAR(50), 
+   designer_id INTEGER);
+
+ALTER TABLE collection ADD CONSTRAINT des_col_FK FOREIGN KEY(designer_id) REFERENCES designer(designer_id);
+
+CREATE TABLE shop
+  (shop_id INTEGER AUTO_INCREMENT PRIMARY KEY, 
+   shop_name VARCHAR(50) NOT NULL, 
+   margin FLOAT,
+   collection_id INTEGER);
+
+ALTER TABLE shop ADD CONSTRAINT col_sh_FK FOREIGN KEY(collection_id) REFERENCES collection(collection_id);
+
+CREATE TABLE type_of_clothing
+  (type_id INTEGER AUTO_INCREMENT PRIMARY KEY, 
+   type_name VARCHAR(50) NOT NULL);
+
+CREATE TABLE element_of_clothes
+  (clothes_id INTEGER AUTO_INCREMENT PRIMARY KEY, 
+   clothes_name VARCHAR(50) NOT NULL, 
+   cost INTEGER, 
+   type_id INTEGER,
+   collection_id INTEGER);
+
+ALTER TABLE element_of_clothes ADD CONSTRAINT ty_el_FK FOREIGN KEY(type_id) REFERENCES type_of_clothing(type_id);
+
+ALTER TABLE element_of_clothes ADD CONSTRAINT col_el_FK FOREIGN KEY(collection_id) REFERENCES collection(collection_id);
+
+
+# --------- заполнение данными -----------
+
+INSERT INTO type_of_clothing (type_name) VALUES ("dress"),("boots"),("jacket"),("pants"),("hat");
+
+INSERT INTO designer (designer_name,place_of_study) VALUES 
+	("James Galanos","Pratt Institute"),("Dries van Noten","Politecnico di Milano");
+INSERT INTO designer (designer_name) VALUES ("Tommy Hilfiger");
+
+INSERT INTO collection (collection_id,collection_name,collection_type,season,designer_id) VALUES 
+	(1,"collection1","casual wear","summer-autumn",1),
+	(2,"collection2","evening dress","winter-spring",1),
+	(3,"collection3","sportswear","all seasonal",2),
+	(4,"collection4","casual wear","summer",2),
+	(5,"collection5","evening dress","summer-autumn",3);
+
+INSERT INTO shop (shop_name,margin,collection_id) VALUES
+	("shop1",1.2,1),
+	("shop2",1.3,1),
+	("shop3",1.5,2),
+	("shop4",1.1,3),
+	("shop5",1.9,4),
+	("shop6",2.7,5),
+	("shop7",2.3,5);
+
+INSERT INTO element_of_clothes (clothes_name,cost,type_id,collection_id) VALUES
+	("dress1",100,1,2),("dress2",150,1,2),("dress3",700,1,5),("dress4",1500,1,5),
+	("boots1",300,2,1),("boots2",100,2,3),("boots3",200,2,4),
+	("jacket1",500,3,1),("jacket2",900,3,2),("jacket3",150,3,3),("jacket4",410,3,4),("jacket5",310,3,5),
+	("pants1",100,4,1),("pants2",500,4,4),
+	("hat1",5000,5,5);
+
+
+# --------- немного селектов -----------
+
+#  количество элементов одежды в коллекции
+SELECT (SELECT collection_name FROM collection WHERE collection_id=element_of_clothes.collection_id) 
+	AS collection_name,COUNT(*) AS amount 
+	FROM element_of_clothes GROUP BY collection_id;
+
+#  стоимость всей коллекции в порядке возрастания
+SELECT SUM(cost) AS collection_cost, 
+	(SELECT collection_name FROM collection WHERE collection_id=element_of_clothes.collection_id) 
+	AS collection_name
+	FROM element_of_clothes GROUP BY collection_id ORDER BY collection_cost;
+
+#  финальная стоимость стоимость всех вещей во всех магазинах
+SELECT shop_name,clothes_name,ROUND(cost*margin) AS final_cost 
+	FROM shop JOIN element_of_clothes using(collection_id);
+
+#  таблица можно сопоставить элемнт одежды и его тип
+SELECT type_name,clothes_name FROM element_of_clothes,type_of_clothing 
+	WHERE element_of_clothes.type_id=type_of_clothing.type_id; 
+
+#  количество коллекций для лета
+SELECT season,COUNT(*) AS amount FROM collection 
+	GROUP BY season HAVING season REGEXP 'summer';
+
+#  количество элементов одежды произведенных каждым дезайнером
+SELECT designer_name,COUNT(*) AS amount_designer`s_clothes 
+	FROM element_of_clothes,collection,designer 
+	WHERE element_of_clothes.collection_id=collection.collection_id 
+	AND collection.designer_id=designer.designer_id 
+	GROUP BY designer_name ORDER BY amount_designer`s_clothes;
+
+#  магазины в которых наценкка больше чем 1.4 и в них продаются коллекции дезайнеров с образованием
+SELECT DISTINCT shop_name FROM shop,collection,designer WHERE margin > 1.4 
+	AND collection.collection_id=shop.collection_id 
+	AND collection.designer_id=designer.designer_id 
+	AND place_of_study IS NOT NULL;
+
+/*  таблица всех товаров и коллекция отсортированная по первой букве в лексикографическом порялке 
+    и по последней в антилексикогравическом  */
+SELECT clothes_name AS name FROM element_of_clothes
+UNION
+SELECT collection_name AS name FROM collection ORDER BY LEFT(name,1) ASC, RIGHT(name,1) DESC;
+
+#  магазины в которых продаются ботинки
+SELECT DISTINCT shop_name FROM shop,collection,element_of_clothes 
+	WHERE shop.collection_id=collection.collection_id 
+	AND element_of_clothes.collection_id=collection.collection_id
+	AND element_of_clothes.type_id=2; 
+
+#  средняя стоимость каждого типа одежды
+SELECT type_name as type_of_clothes,
+	(SELECT AVG(cost) FROM element_of_clothes 
+	WHERE type_of_clothing.type_id=element_of_clothes.type_id) AS avg_cost 
+	FROM type_of_clothing; 
+
+
+#  количество коллеций с самым популярным типом одежды у образованных дизайнеров
+SELECT COUNT(*) AS amount,collection_type FROM collection 
+	WHERE EXISTS (SELECT * FROM designer WHERE collection.designer_id=designer.designer_id
+	AND designer.place_of_study IS NOT NULL) GROUP BY collection_type
+	ORDER BY amount DESC LIMIT 1;
+
+#  коллекции в кторорых можно купить любую вещь за 500
+SELECT collection_name FROM collection
+	WHERE 500 >= ALL(SELECT cost FROM element_of_clothes 
+	WHERE collection.collection_id=element_of_clothes.collection_id);
+
+
+# --------- операторы модификации данных -----------
+
+#  удаление всех шляп
+DELETE FROM element_of_clothes WHERE type_id IN 
+	(SELECT type_id FROM type_of_clothing WHERE type_name='hat');
+
+#  верну шляпу на место
+INSERT INTO element_of_clothes (clothes_id,clothes_name,cost,type_id,collection_id) 
+	 SELECT MAX(clothes_id)+1 ,"hat1",5000,5,5 FROM element_of_clothes;
+
+#  поднять стоимость каждой вещи на 100 в collection3
+UPDATE element_of_clothes SET cost=cost+100 WHERE collection_id 
+	IN (SELECT collection_id FROM collection WHERE collection_name='collection3');
+
+
+# --------- представление VIEW -----------
+
+#  стоимость всей коллекции
+CREATE VIEW cost_of_collection(collection_cost,collection_name) AS 
+	SELECT SUM(cost) AS collection_cost, 
+	(SELECT collection_name FROM collection WHERE collection_id=element_of_clothes.collection_id) 
+	AS collection_name
+	FROM element_of_clothes GROUP BY collection_id;
+#  самая дорогая коллекция и её стоимость
+SELECT collection_cost,collection_name FROM cost_of_collection 
+	WHERE collection_cost=(SELECT MAX(collection_cost) FROM cost_of_collection);
+DROP VIEW cost_of_collection;
+
+
+# --------- индексы -----------
+
+CREATE UNIQUE INDEX idx_col_season ON collection (collection_type,season); /* уникальные индексы сезона и типа */
+CREATE INDEX idx_marg_name ON shop (margin, shop_name);                    /* индексы имени магазина и стоимости */
+DROP INDEX idx_col_season ON collection;
+DROP INDEX idx_marg_name ON shop;
+
+
+# --------- триггер -----------
+
+# тригер создающий логи при добавлении новых дезайнеров
+CREATE TABLE LOG (Message VARCHAR(256));                  /* таблица с логами */
+DELIMITER $$ 	                                          /* задание нового разделителя */
+
+CREATE TRIGGER tr_designer                                /* создание триггера */
+AFTER UPDATE ON designer FOR EACH ROW
+BEGIN 
+	IF OLD.designer_name <> NEW.designer_name OR OLD.place_of_study <> NEW.place_of_study 
+	OR OLD.designer_id <> NEW.designer_id 
+	THEN INSERT INTO LOG(Message) VALUES('Была изменена запись о дизайнере'); 
+	INSERT INTO LOG(Message) VALUES(CONCAT_WS(' ','Старые значения полей:', 
+	OLD.designer_id,OLD.designer_name,OLD.place_of_study)); 
+	INSERT INTO LOG(Message) VALUES(CONCAT_WS(' ','Новые значения полей: ', 
+	NEW.designer_id,NEW.designer_name,NEW.place_of_study)); 
+	END IF;
+END; $$
+
+DELIMITER ;                    /* задание нового разделителя */
+UPDATE designer SET place_of_study='school of art' WHERE designer_id=3; /* меняю таблицу */
+SELECT * FROM LOG;             /* вывожу логи */
+DROP TRIGGER tr_designer;      /* удаляю тригер */
+
+
+# --------- процедура -----------
+
+CREATE TABLE rez (rezult VARCHAR(50));    /* вспомагательная таблица */
+DELIMITER $$                              /* задание нового разделителя */
+DROP PROCEDURE IF EXISTS shops $$         /* на всякий случай почистить */
+
+#  создание процедуры которая возврвщает минимальную итоговую стоимость вещи
+CREATE PROCEDURE nim_price (IN name VARCHAR(50))
+BEGIN
+	DECLARE cheap_price INTEGER;
+	SELECT MIN(ROUND(cost*margin)) INTO cheap_price  /* определяю cheap_price */
+	FROM shop,collection,element_of_clothes 
+	WHERE element_of_clothes.clothes_name=name
+	AND element_of_clothes.collection_id=collection.collection_id 
+	AND shop.collection_id=collection.collection_id;
+	IF cheap_price IS NULL
+	THEN INSERT INTO rez(rezult) VALUES ("Sorry,you can`t buy it");
+	ELSE INSERT INTO rez(rezult) VALUES (cheap_price);
+	END IF; 
+	SELECT * FROM rez; 
+END $$
+
+DELIMITER ;                               /* задание нового разделителя */
+
+CALL nim_price('dress');                  /* оператор вызова процедцры */
+ 
+
+# --------- cleaning time -----------
+
+DROP TABLE LOG;
+DROP TABLE rez;
+DROP TABLE shop;
+DROP TABLE element_of_clothes;
+DROP TABLE collection;
+DROP TABLE designer;
+DROP TABLE type_of_clothing;
+
+DROP DATABASE designer_collection;
+
+
